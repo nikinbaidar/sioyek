@@ -480,6 +480,15 @@ void Document::delete_highlight(Highlight hl) {
     }
 }
 
+void Document::delete_all_highlights() {
+    int i;
+    while (!highlights.empty()) {
+        i = highlights.size() - 1;
+        delete_highlight_with_index(i);
+        
+    }
+}
+
 std::optional<Portal> Document::find_closest_portal(float to_offset_y, int* index) {
     int min_index = argminf<Portal>(portals, [to_offset_y](Portal l) {
         return abs(l.src_offset_y - to_offset_y);
@@ -2173,25 +2182,13 @@ void Document::embed_annotations(std::wstring new_file_path) {
     }
 
     for (auto bookmark : doc_bookmarks) {
-        auto [page_number, doc_x, doc_y] = absolute_to_page_pos({ 0, bookmark.get_y_offset()});
+        auto [page_number, doc_x, doc_y] = absolute_to_page_pos({ 0, bookmark.y_offset_ });
 
         fz_page* page = load_cached_page(page_number);
         pdf_page* pdf_page = pdf_page_from_fz_page(context, page);
         pdf_annot* bookmark_annot;
-        if (bookmark.is_freetext() && (!bookmark.is_box())) {
+        if (bookmark.is_freetext()) {
             bookmark_annot = pdf_create_annot(context, pdf_page, PDF_ANNOT_FREE_TEXT);
-        }
-        else if (bookmark.is_box()) {
-            bookmark_annot = pdf_create_annot(context, pdf_page, PDF_ANNOT_SQUARE);
-
-            float default_color[3] = { 0, 0, 0 };
-            float* color = &default_color[0];
-            std::optional<char> bm_type = bookmark.get_type();
-            if (bm_type) {
-                color = get_highlight_type_color(bm_type.value());
-            }
-
-            pdf_set_annot_color(context, bookmark_annot, 3, color);
         }
         else {
             bookmark_annot = pdf_create_annot(context, pdf_page, PDF_ANNOT_TEXT);
@@ -4063,7 +4060,7 @@ std::wstring Document::detect_paper_name(fz_context* context, fz_document* doc) 
             }
         }
         if (max_block) {
-            return get_string_from_stext_block(max_block, true);
+            return get_string_from_stext_block(max_block);
         }
         else {
             char buffer[1000];

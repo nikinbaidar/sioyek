@@ -799,7 +799,7 @@ MainWidget::MainWidget(fz_context* mupdf_context,
     QHBoxLayout* text_command_line_edit_container_layout = new QHBoxLayout();
 
     text_command_line_edit_label = new QLabel();
-    text_command_line_edit = new MyLineEdit(this);
+    text_command_line_edit = new MyLineEdit();
 
     text_command_line_edit_label->setFont(label_font);
     text_command_line_edit->setFont(label_font);
@@ -814,8 +814,8 @@ MainWidget::MainWidget(fz_context* mupdf_context,
     text_command_line_edit_container->setLayout(text_command_line_edit_container_layout);
     text_command_line_edit_container->hide();
 
-    //QObject::connect(dynamic_cast<MyLineEdit*>(text_command_line_edit), &MyLineEdit::next_suggestion, this, &MainWidget::on_next_text_suggestion);
-    //QObject::connect(dynamic_cast<MyLineEdit*>(text_command_line_edit), &MyLineEdit::prev_suggestion, this, &MainWidget::on_prev_text_suggestion);
+    QObject::connect(dynamic_cast<MyLineEdit*>(text_command_line_edit), &MyLineEdit::next_suggestion, this, &MainWidget::on_next_text_suggestion);
+    QObject::connect(dynamic_cast<MyLineEdit*>(text_command_line_edit), &MyLineEdit::prev_suggestion, this, &MainWidget::on_prev_text_suggestion);
 
     on_command_done = [&](std::string command_name, std::string query_text) {
         if (query_text.size() > 0 && (query_text.back() == '?' || query_text[0] == '?')) {
@@ -1279,7 +1279,7 @@ std::wstring MainWidget::get_status_string() {
     status_string.replace("%{highlight}", " [ h" + QString::fromStdWString(highlight_select_char) + ":" + select_highlight_type + " ]");
     QString drawing_mode_string = "";
     if (freehand_drawing_mode == DrawingMode::Drawing) {
-        drawing_mode_string = QString(" [ freehand:") + current_freehand_type + " ]";
+        drawing_mode_string = QString(" [ doodle:") + current_freehand_type + " ]";
     }
     if (freehand_drawing_mode == DrawingMode::PenDrawing) {
         drawing_mode_string = QString(" [ pen:") + current_freehand_type + " ]";
@@ -1374,9 +1374,6 @@ void MainWidget::handle_escape() {
             should_return = true;
         }
         else if (opengl_widget->get_is_searching(nullptr)) {
-            if (pending_command_instance){
-                pending_command_instance->on_cancel();
-            }
             opengl_widget->cancel_search();
             get_search_buttons()->hide();
             hide_command_line_edit();
@@ -5062,10 +5059,10 @@ void MainWidget::perform_search(std::wstring text, bool is_regex, bool is_increm
 
     if (!is_incremental) {
         add_search_term(text);
-        // When searching, the start position before search is saved in a mark named '0'
-        main_document_view->add_mark('/');
     }
 
+    // When searching, the start position before search is saved in a mark named '0'
+    main_document_view->add_mark('/');
 
     int range_begin, range_end;
     std::wstring search_term;
@@ -5086,10 +5083,6 @@ void MainWidget::perform_search(std::wstring text, bool is_regex, bool is_increm
     if (CASE_SENSITIVE_SEARCH) case_sens = SearchCaseSensitivity::CaseSensitive;
     if (SMARTCASE_SEARCH) case_sens = SearchCaseSensitivity::SmartCase;
     opengl_widget->search_text(search_term, case_sens, is_regex, search_range);
-
-    if (is_incremental) {
-        goto_search_result(1);
-    }
 }
 
 void MainWidget::overview_to_definition() {
@@ -5874,6 +5867,10 @@ void MainWidget::handle_toggle_typing_mode() {
         main_document_view->set_offset_y(typing_location.value().focus_offset());
 
     }
+}
+
+void MainWidget::handle_delete_all_highlights() {
+    main_document_view->delete_all_highlights();
 }
 
 void MainWidget::handle_delete_highlight_under_cursor() {
@@ -7363,7 +7360,6 @@ std::string MainWidget::get_current_mode_string() {
     res += (opengl_widget->get_overview_page()) ? "o" : "O";
     res += opengl_widget->get_scratchpad() ? "s" : "S";
     res += (opengl_widget->get_is_searching(nullptr)) ? "f" : "F";
-    res += (is_menu_focused()) ? "m" : "M";
 
     if (main_document_view) {
         res += (main_document_view->selected_character_rects.size() > 0) ? "t" : "T";
@@ -8819,12 +8815,10 @@ QJsonObject MainWidget::get_json_annotations() {
 QString MainWidget::handle_action_in_menu(std::wstring action) {
 
     BaseSelectorWidget* selector_widget = nullptr;
-    MyLineEdit* my_line_edit = nullptr;
 
     if (current_widget_stack.size() > 0) {
         selector_widget = dynamic_cast<BaseSelectorWidget*>(current_widget_stack.back());
     }
-    my_line_edit = dynamic_cast<MyLineEdit*>(focusWidget());
 
     if (selector_widget) {
         if (action == L"down") {
@@ -8833,97 +8827,13 @@ QString MainWidget::handle_action_in_menu(std::wstring action) {
         if (action == L"up") {
             selector_widget->simulate_move_up();
         }
-        if (action == L"page_down") {
-            selector_widget->simulate_page_down();
-        }
-        if (action == L"page_up") {
-            selector_widget->simulate_page_up();
-        }
-        if (action == L"menu_begin") {
-            selector_widget->simulate_home();
-        }
-        if (action == L"menu_end") {
-            selector_widget->simulate_end();
-        }
         if (action == L"select") {
             selector_widget->simulate_select();
         }
+
         if (action == L"get") {
             return selector_widget->get_selected_item();
         }
-    }
-    if (my_line_edit) {
-        if (action == L"cursor_backward") {
-            my_line_edit->cursorBackward(false);
-        }
-        else if (action == L"cursor_forward") {
-            my_line_edit->cursorForward(false);
-        }
-        else if (action == L"select_backward") {
-            my_line_edit->cursorBackward(true);
-        }
-        else if (action == L"select_forward") {
-            my_line_edit->cursorForward(true);
-        }
-        else if (action == L"move_word_backward") {
-            my_line_edit->cursorWordBackward(false);
-        }
-        else if (action == L"move_word_forward") {
-            my_line_edit->cursorWordForward(false);
-        }
-        else if (action == L"select_word_backward") {
-            my_line_edit->cursorWordBackward(true);
-        }
-        else if (action == L"select_word_forward") {
-            my_line_edit->cursorWordForward(true);
-        }
-        else if (action == L"move_to_end") {
-            my_line_edit->end(false);
-        }
-        else if (action == L"select_to_end") {
-            my_line_edit->end(true);
-        }
-        else if (action == L"move_to_begin") {
-            my_line_edit->home(false);
-        }
-        else if (action == L"select_all") {
-            my_line_edit->selectAll();
-        }
-        else if (action == L"select_to_begin") {
-            my_line_edit->home(true);
-        }
-        else if (action == L"delete_to_end") {
-            my_line_edit->end(true);
-            my_line_edit->del();
-        }
-        else if (action == L"delete_to_begin") {
-            my_line_edit->home(true);
-            my_line_edit->del();
-        }
-        else if (action == L"delete_next_word") {
-            my_line_edit->cursorWordForward(true);
-            my_line_edit->del();
-        }
-        else if (action == L"delete_prev_word") {
-            my_line_edit->cursorWordBackward(true);
-            my_line_edit->del();
-        }
-        else if (action == L"delete_next_char") {
-            my_line_edit->cursorForward(true);
-            my_line_edit->del();
-        }
-        else if (action == L"delete_prev_char") {
-            my_line_edit->cursorBackward(true);
-            my_line_edit->del();
-        }
-        else if (action == L"next_suggestion") {
-            on_next_text_suggestion();
-        }
-        else if (action == L"prev_suggestion") {
-            on_prev_text_suggestion();
-        }
-
-
     }
     return "";
 }
@@ -9865,11 +9775,4 @@ std::optional<std::wstring> MainWidget::get_search_suggestion_with_index(int ind
     else {
         return search_terms[search_terms.size() + index];
     }
-}
-
-bool MainWidget::is_menu_focused() {
-    if (dynamic_cast<MyLineEdit*>(focusWidget())) {
-        return true;
-    }
-    return false;
 }

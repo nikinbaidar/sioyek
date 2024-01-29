@@ -1347,6 +1347,7 @@ void PdfViewOpenGLWidget::my_render(QPainter* painter) {
             int max_page = visible_pages[visible_pages.size() - 1];
             for (int i = 1; i < (PRERENDERED_PAGE_COUNT + 1); i++) {
                 if (max_page + i < num_pages) {
+
                     float page_width = document_view->get_document()->get_page_width(max_page + i);
                     float page_height = document_view->get_document()->get_page_width(max_page + i);
                     PagelessDocumentRect page_rect({ 0, 0, page_width, page_height });
@@ -1354,9 +1355,9 @@ void PdfViewOpenGLWidget::my_render(QPainter* painter) {
                     num_slices_for_page_rect(page_rect, &nh, &nv);
 
                     pdf_renderer->find_rendered_page(document_view->get_document()->get_path(),
-                        max_page + i,
                         document_view->get_document()->should_render_pdf_annotations(),
-                        -1,
+                        max_page + i,
+                        0,
                         nh,
                         nv,
                         document_view->get_zoom_level(),
@@ -1622,21 +1623,20 @@ void PdfViewOpenGLWidget::my_render(QPainter* painter) {
                         flags |= Qt::AlignLeft;
                     }
 
-                    if (bookmarks[i].description[0] == '#') {
-
-                        QString box_text = QString::fromStdWString(bookmarks[i].description).split(' ')[0];
-                        std::optional<char> bm_type = bookmarks[i].get_type();
-                        if (!bm_type.has_value()){
+                    if ((bookmarks[i].description[0] == L'#') && (bookmarks[i].description[1] != L' ' &&
+                                bookmarks[i].description[2] == L' ' )) {
+                        char mode = bookmarks[i].description[1];
+                        if (mode >= 'a' && mode <= 'z') {
+                            std::array<float, 3> box_color = cc3( & HIGHLIGHT_COLORS[3 * (mode - 'a')]);
+                            painter->setPen(convert_float3_to_qcolor(&box_color[0]));
                             painter->drawRect(window_rect.x0, window_rect.y0, fz_irect_width(window_rect), fz_irect_height(window_rect));
                         }
-                        else{
-                            char mode = bm_type.value();
-                            if (mode >= 'a' && mode <= 'z') {
-                                std::array<float, 3> box_color = cc3( & HIGHLIGHT_COLORS[3 * (mode - 'a')]);
-                                painter->setPen(convert_float3_to_qcolor(&box_color[0]));
-                                painter->drawRect(window_rect.x0, window_rect.y0, fz_irect_width(window_rect), fz_irect_height(window_rect));
-                            }
-                        }
+                    }
+                    else if (bookmarks[i].description[0] == L'#') {
+                        painter->drawRect(window_rect.x0, window_rect.y0, fz_irect_width(window_rect), fz_irect_height(window_rect));
+                    }
+                    else if (bookmarks[i].description[0] == L'#') {
+                        painter->drawRect(window_rect.x0, window_rect.y0, fz_irect_width(window_rect), fz_irect_height(window_rect));
                     }
                     else {
                         painter->drawText(window_qrect, flags, QString::fromStdWString(bookmarks[i].description));

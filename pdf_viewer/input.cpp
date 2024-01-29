@@ -40,11 +40,6 @@ extern bool FUZZY_SEARCHING;
 extern bool TOC_JUMP_ALIGN_TOP;
 extern bool FILL_TEXTBAR_WITH_SELECTED_TEXT;
 extern bool SHOW_MOST_RECENT_COMMANDS_FIRST;
-extern bool INCREMENTAL_SEARCH;
-
-bool is_command_string_modal(const std::string& command_name) {
-    return std::find(command_name.begin(), command_name.end(), '[') != command_name.end();
-}
 
 struct CommandInvocation {
     QString command_name;
@@ -75,13 +70,6 @@ struct CommandInvocation {
 
 Command::Command(MainWidget* widget_) : widget(widget_) {
 
-}
-
-bool Command::is_menu_command() {
-    // returns true if the command is a macro designed to run only on menus (m)
-    // we then ignore keys in menus if they are bound to such commands so they
-    // can be later handled by our own InputHandler
-    return false;
 }
 
 Command::~Command() {
@@ -539,20 +527,8 @@ public:
     SearchCommand(MainWidget* w) : TextCommand(w) {
     };
 
-    void pre_perform() {
-        if (INCREMENTAL_SEARCH) {
-            widget->main_document_view->add_mark('/');
-        }
-    }
-
-    virtual void on_cancel() override{
-        if (INCREMENTAL_SEARCH) {
-            widget->goto_mark('/');
-        }
-    }
-
     void perform() {
-        widget->perform_search(this->text.value(), false, INCREMENTAL_SEARCH);
+        widget->perform_search(this->text.value(), false);
         if (TOUCH_MODE) {
             widget->show_search_buttons();
         }
@@ -1333,51 +1309,6 @@ public:
 
 };
 
-class CopyScreenshotToClipboard : public Command {
-
-public:
-
-    std::optional<AbsoluteRect> rect_;
-
-    CopyScreenshotToClipboard(MainWidget* w) : Command(w) {};
-
-    std::optional<Requirement> next_requirement(MainWidget* widget) {
-
-        if (!rect_.has_value()) {
-            Requirement req = { RequirementType::Rect, "Screenshot rect" };
-            return req;
-        }
-        return {};
-    }
-
-    void set_rect_requirement(AbsoluteRect value) {
-        rect_ = value;
-    }
-
-    void perform() {
-        widget->clear_selected_rect();
-
-        WindowRect window_rect = rect_->to_window(widget->main_document_view);
-        window_rect.y0 += 1;
-        QRect window_qrect = QRect(window_rect.x0, window_rect.y0, window_rect.width(), window_rect.height());
-
-        float ratio = QGuiApplication::primaryScreen()->devicePixelRatio();
-        QPixmap pixmap(static_cast<int>(window_qrect.width() * ratio), static_cast<int>(window_qrect.height() * ratio));
-        pixmap.setDevicePixelRatio(ratio);
-
-        //widget->render(&pixmap, QPoint(), QRegion(widget->rect()));
-        widget->render(&pixmap, QPoint(), QRegion(window_qrect));
-        QApplication::clipboard()->setPixmap(pixmap);
-
-        widget->set_rect_select_mode(false);
-        widget->invalidate_render();
-    }
-
-    std::string get_name() {
-        return "copy_screenshot_to_clipboard";
-    }
-
-};
 class CopyScreenshotToScratchpad : public Command {
 
 public:
@@ -1989,7 +1920,7 @@ public:
 class WaitCommand : public GenericWaitCommand {
     std::optional<int> duration = {};
     QDateTime start_time;
-public:
+    public:
     WaitCommand(MainWidget* w) : GenericWaitCommand(w) {
         start_time = QDateTime::currentDateTime();
     };
@@ -2017,6 +1948,7 @@ public:
     }
 
 };
+
 class WaitForIndexingToFinishCommand : public GenericWaitCommand {
 public:
     WaitForIndexingToFinishCommand(MainWidget* w) : GenericWaitCommand(w) {};
@@ -4796,6 +4728,20 @@ public:
 
 };
 
+class DeleteAllHighlightsCommand : public Command {
+public:
+    DeleteAllHighlightsCommand(MainWidget* w) : Command(w) {};
+
+    void perform() {
+        widget->handle_delete_all_highlights();
+    }
+
+    std::string get_name() {
+        return "delete_all_highlights";
+    }
+
+};
+
 class NoopCommand : public Command {
 public:
 
@@ -4981,7 +4927,7 @@ public:
     EmbedAnnotationsCommand(MainWidget* w) : Command(w) {};
 
     void perform() {
-        std::wstring embedded_pdf_file_name = select_new_pdf_file_name();
+        std::wstring embedded_pdf_file_name = widget->doc()->get_path();
         if (embedded_pdf_file_name.size() > 0) {
             widget->main_document_view->get_document()->embed_annotations(embedded_pdf_file_name);
         }
@@ -5840,19 +5786,6 @@ public:
         }
     }
 
-    bool is_menu_command() {
-        if (is_modal) {
-            bool res = false;
-            for (std::string mode : modes) {
-                if (mode == "m") {
-                    res = true;
-                }
-            }
-            return res;
-        }
-        return false;
-    }
-
     void set_generic_requirement(QVariant value) {
         if (is_modal) {
             int current_mode_index = get_current_mode_index();
@@ -6178,7 +6111,6 @@ CommandManager::CommandManager(ConfigManager* config_manager) {
     new_commands["add_freetext_bookmark"] = [](MainWidget* widget) {return std::make_unique< AddBookmarkFreetextCommand>(widget); };
     new_commands["copy_drawings_from_scratchpad"] = [](MainWidget* widget) {return std::make_unique< CopyDrawingsFromScratchpadCommand>(widget); };
     new_commands["copy_screenshot_to_scratchpad"] = [](MainWidget* widget) {return std::make_unique< CopyScreenshotToScratchpad>(widget); };
-    new_commands["copy_screenshot_to_clipboard"] = [](MainWidget* widget) {return std::make_unique< CopyScreenshotToClipboard>(widget); };
     new_commands["add_highlight"] = [](MainWidget* widget) {return std::make_unique< AddHighlightCommand>(widget); };
     new_commands["goto_toc"] = [](MainWidget* widget) {return std::make_unique< GotoTableOfContentsCommand>(widget); };
     new_commands["goto_highlight"] = [](MainWidget* widget) {return std::make_unique< GotoHighlightCommand>(widget); };
@@ -6318,6 +6250,7 @@ CommandManager::CommandManager(ConfigManager* config_manager) {
     new_commands["overview_next_item"] = [](MainWidget* widget) {return std::make_unique< OverviewNextItemCommand>(widget); };
     new_commands["overview_prev_item"] = [](MainWidget* widget) {return std::make_unique< OverviewPrevItemCommand>(widget); };
     new_commands["delete_highlight_under_cursor"] = [](MainWidget* widget) {return std::make_unique< DeleteHighlightUnderCursorCommand>(widget); };
+    new_commands["delete_all_highlights"] = [](MainWidget* widget) {return std::make_unique< DeleteAllHighlightsCommand>(widget); };
     new_commands["noop"] = [](MainWidget* widget) {return std::make_unique< NoopCommand>(widget); };
     new_commands["import"] = [](MainWidget* widget) {return std::make_unique< ImportCommand>(widget); };
     new_commands["export"] = [](MainWidget* widget) {return std::make_unique< ExportCommand>(widget); };
@@ -6826,13 +6759,13 @@ InputParseTreeNode* parse_lines(
             if (!existing_node) {
                 if ((tokens[i] != L"sym") && (tokens[i] != L"txt")) {
                     if (parent_node->is_final) {
-                        LOG(std::wcerr
+                        std::wcerr
                             << L"Warning: key defined in " << command_file_names[j]
                             << L":" << command_line_numbers[j]
                             << L" for " << utf8_decode(command_names[j][0])
                             << L" is unreachable, shadowed by final key sequence defined in "
                             << parent_node->defining_file_path
-                            << L":" << parent_node->defining_file_line << L"\n");
+                            << L":" << parent_node->defining_file_line << L"\n";
                     }
                     auto new_node = new InputParseTreeNode(node);
                     new_node->defining_file_line = command_line_numbers[j];
@@ -6856,19 +6789,17 @@ InputParseTreeNode* parse_lines(
                 (SHOULD_WARN_ABOUT_USER_KEY_OVERRIDE ||
                     (command_file_names[j].compare(parent_node->defining_file_path)) == 0)) {
                 if ((parent_node->name_.size() == 0) || parent_node->name_[0].compare(command_names[j][0]) != 0) {
-                    if (!is_command_string_modal(command_names[j][0])) {
 
-                        std::wcerr << L"Warning: key defined in " << parent_node->defining_file_path
-                            << L":" << parent_node->defining_file_line
-                            << L" overwritten by " << command_file_names[j]
-                            << L":" << command_line_numbers[j];
-                        if (parent_node->name_.size() > 0) {
-                            std::wcerr << L". Overriding command: " << line
-                                << L": replacing " << utf8_decode(parent_node->name_[0])
-                                << L" with " << utf8_decode(command_names[j][0]);
-                        }
-                        std::wcerr << L"\n";
+                    std::wcerr << L"Warning: key defined in " << parent_node->defining_file_path
+                        << L":" << parent_node->defining_file_line
+                        << L" overwritten by " << command_file_names[j]
+                        << L":" << command_line_numbers[j];
+                    if (parent_node->name_.size() > 0) {
+                        std::wcerr << L". Overriding command: " << line
+                            << L": replacing " << utf8_decode(parent_node->name_[0])
+                            << L" with " << utf8_decode(command_names[j][0]);
                     }
+                    std::wcerr << L"\n";
                 }
             }
             if ((size_t)i == (tokens.size() - 1)) {
@@ -6909,7 +6840,7 @@ InputParseTreeNode* parse_lines(
                 //if (command_names[j].size())
             }
             else {
-                if (SHOULD_WARN_ABOUT_USER_KEY_OVERRIDE && parent_node->is_final && (parent_node->name_.size() > 0)) {
+                if (parent_node->is_final && (parent_node->name_.size() > 0)) {
                     std::wcerr << L"Warning: unmapping " << utf8_decode(parent_node->name_[0]) << L" because of " << utf8_decode(command_names[j][0]) << L" which uses " << line << L"\n";
                 }
                 parent_node->is_final = false;
@@ -7035,30 +6966,15 @@ bool is_digit(int key) {
     return key >= Qt::Key::Key_0 && key <= Qt::Key::Key_9;
 }
 
-std::unique_ptr<Command> InputHandler::get_menu_command(MainWidget* w, QKeyEvent* key_event, bool shift_pressed, bool control_pressed, bool alt_pressed) {
-    // get the command for keyevent while we are in a menu. In menus we don't
-    // support key melodies so we just check the children of the root if they match
-    int key = get_event_key(key_event, &shift_pressed, &control_pressed, &alt_pressed);
-    for (auto child : root->children) {
-        if (child->is_final && child->matches(key, shift_pressed, control_pressed, alt_pressed)){
-            if (child->generator.has_value()) {
-                return child->generator.value()(w);
-            }
-        }
-    }
-
-    return {};
-}
-
-int InputHandler::get_event_key(QKeyEvent* key_event, bool* shift_pressed, bool* control_pressed, bool* alt_pressed) {
+std::unique_ptr<Command> InputHandler::handle_key(MainWidget* w, QKeyEvent* key_event, bool shift_pressed, bool control_pressed, bool alt_pressed, int* num_repeats) {
     int key = 0;
     if (!USE_LEGACY_KEYBINDS) {
         std::vector<QString> special_texts = { "\b", "\t", " ", "\r", "\n" };
         if (((key_event->key() >= 'A') && (key_event->key() <= 'Z')) || ((key_event->text().size() > 0) &&
             (std::find(special_texts.begin(), special_texts.end(), key_event->text()) == special_texts.end()))) {
-            if (!(*control_pressed) && !(*alt_pressed)) {
+            if (!control_pressed && !alt_pressed) {
                 // shift is already handled in the returned text
-                *shift_pressed = false;
+                shift_pressed = false;
                 std::wstring text = key_event->text().toStdWString();
                 key = key_event->text().toStdWString()[0];
             }
@@ -7066,8 +6982,8 @@ int InputHandler::get_event_key(QKeyEvent* key_event, bool* shift_pressed, bool*
                 auto text = key_event->text();
                 key = key_event->key();
 
-                if ((key >= 'A' && key <= 'Z') && (!*shift_pressed)) {
-                    if (!*shift_pressed) {
+                if ((key >= 'A' && key <= 'Z') && (!shift_pressed)) {
+                    if (!shift_pressed) {
                         key = key - 'A' + 'a';
                     }
                 }
@@ -7088,12 +7004,7 @@ int InputHandler::get_event_key(QKeyEvent* key_event, bool* shift_pressed, bool*
         }
 
     }
-    return key;
-}
 
-std::unique_ptr<Command> InputHandler::handle_key(MainWidget* w, QKeyEvent* key_event, bool shift_pressed, bool control_pressed, bool alt_pressed, int* num_repeats) {
-
-    int key = get_event_key(key_event, &shift_pressed, &control_pressed, &alt_pressed);
     if (current_node == root && is_digit(key)) {
         if (!(key == '0' && (number_stack.size() == 0)) && (!control_pressed) && (!shift_pressed) && (!alt_pressed)) {
             number_stack.push_back('0' + key - Qt::Key::Key_0);
@@ -7129,7 +7040,7 @@ std::unique_ptr<Command> InputHandler::handle_key(MainWidget* w, QKeyEvent* key_
             }
         }
     }
-    LOG(std::wcerr << "Warning: invalid command (key:" << (char)key << "); resetting to root" << std::endl);
+    std::wcerr << "Warning: invalid command (key:" << (char)key << "); resetting to root" << std::endl;
     number_stack.clear();
     current_node = root;
     return nullptr;

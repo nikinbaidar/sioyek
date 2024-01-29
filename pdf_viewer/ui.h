@@ -78,6 +78,7 @@ extern int FONT_SIZE;
 const int max_select_size = 100;
 extern bool SMALL_TOC;
 extern bool MULTILINE_MENUS;
+extern bool EMACS_MODE;
 extern bool TOUCH_MODE;
 
 
@@ -104,18 +105,21 @@ class MyLineEdit: public QLineEdit {
     Q_OBJECT
 
 public:
-    MainWidget* main_widget;
-    MyLineEdit(MainWidget* parent);
+    MyLineEdit(QWidget* parent=nullptr);
 
     void keyPressEvent(QKeyEvent* event) override;
     int get_next_word_position();
     int get_prev_word_position();
+
+signals:
+    void next_suggestion();
+    void prev_suggestion();
 };
 
 class BaseSelectorWidget : public QWidget {
 
 protected:
-    BaseSelectorWidget(QAbstractItemView* item_view, bool fuzzy, QStandardItemModel* item_model, MainWidget* parent);
+    BaseSelectorWidget(QAbstractItemView* item_view, bool fuzzy, QStandardItemModel* item_model, QWidget* parent);
 
     void on_text_changed(const QString& text);
 
@@ -152,10 +156,6 @@ public:
     bool eventFilter(QObject* obj, QEvent* event) override;
     void simulate_move_down();
     void simulate_move_up();
-    void simulate_page_down();
-    void simulate_page_up();
-    void simulate_end();
-    void simulate_home();
     void simulate_select();
     void handle_delete();
     void handle_edit();
@@ -186,7 +186,7 @@ public:
 
     FilteredTreeSelect(bool fuzzy, QStandardItemModel* item_model,
         std::function<void(const std::vector<int>&)> on_done,
-        MainWidget* parent,
+        QWidget* parent,
         std::vector<int> selected_index) : BaseSelectorWidget(new QTreeView(), fuzzy, item_model, parent),
         on_done(on_done)
     {
@@ -248,7 +248,7 @@ public:
         std::vector<T> values,
         int selected_index,
         std::function<void(T*)> on_done,
-        MainWidget* parent,
+        QWidget* parent,
         std::function<void(T*)> on_delete_function = nullptr) : BaseSelectorWidget(new QTableView(), fuzzy, nullptr, parent),
         values(values),
         on_done(on_done),
@@ -510,7 +510,7 @@ public:
     FilteredSelectWindowClass(bool fuzzy, std::vector<std::wstring> std_string_list,
         std::vector<T> values,
         std::function<void(T*)> on_done,
-        MainWidget* parent,
+        QWidget* parent,
         std::function<void(T*)> on_delete_function = nullptr, int selected_index = -1) : BaseSelectorWidget(new QListView(), fuzzy, nullptr, parent),
         values(values),
         on_done(on_done),
@@ -611,7 +611,7 @@ public:
         return "QListView";
     }
 
-    FileSelector(bool is_fuzzy, std::function<void(std::wstring)> on_done, MainWidget* parent, QString last_path) :
+    FileSelector(bool is_fuzzy, std::function<void(std::wstring)> on_done, QWidget* parent, QString last_path) :
         BaseSelectorWidget(new QListView(), is_fuzzy, nullptr, parent),
         on_done(on_done)
     {

@@ -112,7 +112,6 @@ extern std::wstring VOLUME_UP_COMMAND;
 extern int DOCUMENTATION_FONT_SIZE;
 extern int NUM_PRERENDERED_NEXT_SLIDES;
 extern int NUM_PRERENDERED_PREV_SLIDES;
-extern int NUM_CACHED_PAGES;
 
 extern std::vector<AdditionalKeymapData> ADDITIONAL_KEYMAPS;
 
@@ -159,6 +158,7 @@ extern std::map<std::wstring, std::wstring> ADDITIONAL_MACROS;
 extern std::map<std::wstring, std::pair<std::wstring, std::wstring>> ADDITIONAL_JAVASCRIPT_COMMANDS;
 extern std::map<std::wstring, std::pair<std::wstring, std::wstring>> ADDITIONAL_ASYNC_JAVASCRIPT_COMMANDS;
 extern bool PRERENDER_NEXT_PAGE;
+extern bool EMACS_MODE;
 extern bool HIGHLIGHT_MIDDLE_CLICK;
 extern float HYPERDRIVE_SPEED_FACTOR;
 extern float SMOOTH_SCROLL_SPEED;
@@ -1012,15 +1012,6 @@ ConfigManager::ConfigManager(const Path& default_path, const Path& auto_path, co
         IntExtras{0, 5}
         });
     configs.push_back({
-        L"num_cached_pages",
-        ConfigType::Int,
-        &NUM_CACHED_PAGES,
-        int_serializer,
-        int_deserializer,
-        nullptr,
-        IntExtras{0, 100}
-        });
-    configs.push_back({
         L"num_prerendered_prev_slides",
         ConfigType::Int,
         &NUM_PRERENDERED_PREV_SLIDES,
@@ -1735,6 +1726,14 @@ ConfigManager::ConfigManager(const Path& default_path, const Path& auto_path, co
         L"prerender_next_page_presentation",
         ConfigType::Bool,
         &PRERENDER_NEXT_PAGE,
+        bool_serializer,
+        bool_deserializer,
+        bool_validator
+        });
+    configs.push_back({
+        L"emacs_mode_menus",
+        ConfigType::Bool,
+        &EMACS_MODE,
         bool_serializer,
         bool_deserializer,
         bool_validator

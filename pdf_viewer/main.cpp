@@ -274,6 +274,7 @@ std::map<std::wstring, std::pair<std::wstring, std::wstring>> ADDITIONAL_ASYNC_J
 std::map<std::wstring, std::wstring> ADDITIONAL_MACROS;
 std::vector<AdditionalKeymapData> ADDITIONAL_KEYMAPS;
 bool PRERENDER_NEXT_PAGE = true;
+bool EMACS_MODE = false;
 bool HIGHLIGHT_MIDDLE_CLICK = false;
 float HYPERDRIVE_SPEED_FACTOR = 10.0f;
 float SMOOTH_SCROLL_SPEED = 3.0f;
@@ -281,11 +282,6 @@ float SMOOTH_SCROLL_DRAG = 3000.0f;
 int PRERENDERED_PAGE_COUNT = 0;
 std::wstring CONTEXT_MENU_ITEMS = L"";
 bool RIGHT_CLICK_CONTEXT_MENU = false;
-#ifdef SIOYEK_ANDROID
-int NUM_CACHED_PAGES = 10;
-#else
-int NUM_CACHED_PAGES = 5;
-#endif
 
 float PAGE_SEPARATOR_WIDTH = 0.0f;
 float PAGE_SEPARATOR_COLOR[3] = { 0.9f, 0.9f, 0.9f };

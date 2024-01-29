@@ -599,6 +599,7 @@ public:
     void handle_toggle_smooth_scroll_mode();
     void handle_overview_to_portal();
     void handle_toggle_typing_mode();
+    void handle_delete_all_highlights();
     void handle_delete_highlight_under_cursor();
     void handle_delete_selected_highlight();
     void handle_start_reading();
@@ -910,7 +911,6 @@ public:
     void clear_keyboard_select_highlights();
     void handle_goto_link_with_page_and_offset(int page, float y_offset);
     std::optional<std::wstring> get_search_suggestion_with_index(int index);
-    bool is_menu_focused();
 };
 
 #endif
