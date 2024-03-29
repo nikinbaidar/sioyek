@@ -112,6 +112,7 @@ extern std::wstring VOLUME_UP_COMMAND;
 extern int DOCUMENTATION_FONT_SIZE;
 extern int NUM_PRERENDERED_NEXT_SLIDES;
 extern int NUM_PRERENDERED_PREV_SLIDES;
+extern bool IGNORE_SCROLL_EVENTS;
 
 extern std::vector<AdditionalKeymapData> ADDITIONAL_KEYMAPS;
 
@@ -794,6 +795,14 @@ ConfigManager::ConfigManager(const Path& default_path, const Path& auto_path, co
         L"preserve_image_colors_in_dark_mode",
         ConfigType::Bool,
         &PRESERVE_IMAGE_COLORS,
+        bool_serializer,
+        bool_deserializer,
+        bool_validator
+        });
+    configs.push_back({
+        L"ignore_scroll_events",
+        ConfigType::Bool,
+        &IGNORE_SCROLL_EVENTS,
         bool_serializer,
         bool_deserializer,
         bool_validator
